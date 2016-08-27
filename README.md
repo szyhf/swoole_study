@@ -8,7 +8,7 @@
 
 # 番外
 
-1. [番外：守护进程二三事与Supervisor](https://github.com/szyhf/swoole_study/blob/master/番外：守护进程二三事与Supervisor.md) 
+1. [守护进程二三事与Supervisor](https://github.com/szyhf/swoole_study/blob/master/番外：守护进程二三事与Supervisor.md) 
 
 # 计划
 
