@@ -9,3 +9,8 @@
 # 番外
 
 1. [番外：守护进程二三事与Supervisor](https://github.com/szyhf/swoole_study/blob/master/番外：守护进程二三事与Supervisor.md) 
+
+# 计划
+
+1. Swoole Server与多进程并发。（多进程工作模型、热重载问题）
+2. 应用层协议与心跳帧。（分包、黏包，pack\unpack函数、swoole_buffer）
