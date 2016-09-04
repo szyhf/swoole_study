@@ -51,9 +51,6 @@ echo "Hello PHP";
 
     $server->on('connect', function ($serv, $fd){
             echo "Client:Connect.\n";
-            
-            //启动一个循环，定时向客户端发一个消息
-            
 });
 
     $server->on('receive', function ($serv, $fd, $from_id, $data) {
