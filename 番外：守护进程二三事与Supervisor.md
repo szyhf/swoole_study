@@ -181,7 +181,7 @@ systemd pid = 1
 
 ```nginx
 # 编辑nginx的配置文件
-deamon = false;
+daemon off;
 ```
 
 此时，nginx就不会主动的守护自身，而是把这个权利让渡给了supervisor，由supervisor守护自己
