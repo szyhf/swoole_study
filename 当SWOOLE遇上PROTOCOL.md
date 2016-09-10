@@ -2,6 +2,8 @@
 
 上回我们简单介绍了一下TCP Server的工作方式以及如何用Swoole实现一个简单的TCP Server，这次我们来聊聊信息流动中，非常重要基石之一——协议（PROTOCOL）。
 
+> 教师节献礼加更，祝愿我的老师们身体健康，合家美满，感谢他们没有放弃我，一直以来给我的支持与鼓励！
+
 # 协议，通信的基石
 
 每次讲到协议，都会想起小时候学习语文时，有段时间特别痴迷各种文字游戏。
@@ -24,7 +26,7 @@
 
 > 在语文上，我们用的是标点符号；数学上，我们有各种的加减乘除......
 
-# 奔流不息的TCP与毫无记忆的HTTP
+# 从HTTP到TCP，从应用层回到传输层
 
 相信TCP协议（Transmission Control Protocol）应该是想学习SWOOLE的童鞋最容易遇到的拦路虎之一，因为一般我们使用PHP做网站开发的时候，并不需要处理涉及TCP协议的东西，只要了解一部分HTTP协议（HyperText Transfer Protocol）就可以做很多事情。
 
@@ -79,7 +81,7 @@ GET / HTTP/1.1
 Host: 127.0.0.1:8088
 Connection: keep-alive
 Upgrade-Insecure-Requests: 1
-User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/250.36 (KHTML, like Gecko) Chrome/52.0.2743.250 Safari/250.36
 Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
 Accept-Encoding: gzip, deflate, sdch
 Accept-Language: zh-CN,zh;q=0.8
@@ -91,3 +93,86 @@ Accept-Language: zh-CN,zh;q=0.8
 
 > 这就是根据HTTP协议编写的一段信息。
 
+而编写者是谁呢？没错，就是我们一直默默无闻而几乎是互联网改变世界的基石之一，浏览器，每当我们通过浏览器访问不同的网站时，浏览器都会默默生成类似的文本作为WebRequest的正文，提交给对应的服务端。
+
+> 有兴趣的童鞋，可以试试使用附带Get请求、Post请求等方式访问，看看Server端收到的文本所有什么不同
+
+木有错，这就是超文本传输协议的本体，也是为什么叫超文本的原因，它是通过特定格式的字符串完成请求的描述的，在《当SWOOLE遇上SERVER》一文中，我曾经提到Apache收到客户端请求以后，经过一定的解析，再由Zend调用PHP脚本执行业务工作并完成输出；这里提到的请求就是这个。
+
+> 当然，浏览器上经常遇到协议还有HTTPS，这里先按下不表。
+
+完整的HTTP协议非常复杂，笔者这里就不详细叙述了，但HTTP协议有一个基本规则，各个字段之间，是通过“\r\n”进行分割的，简单说，当我们收到一个“完整的”HTTP请求的时候，可以用explode方法快速的划分区段，然后再根据区段进行解析，就能知道用户请求的是什么了。
+
+> 看格式其实或多或少都能猜到写了什么
+
+知道用户请求的是什么，我们就可以选择性的输出用户想要的东西，例如：
+
+```php
+$server->on('receive', function ($serv, $fd, $from_id, $data)
+{
+    $reqAry = explode("\r\n",$data);
+    
+    if (stripos($reqAry[0],"Hello.php") !== FALSE )
+    {
+        echo "用户想调用Hello.php".PHP_EOL;
+        $serv->send($fd,"你调用了Hello.php方法");
+    }
+    else if (stripos($reqAry[0],"World.php") !== FALSE )
+    {
+        echo "用户想调用World.php".PHP_EOL;
+        $serv->send($fd,"你调用了World.php方法");
+    }
+    else
+    {
+        echo "用户想请求了一个不支持的方法".PHP_EOL;
+        $serv->send($fd,"404，你调用的方法我们不支持。");
+    }
+}
+```
+
+我们修改一下receive的回调，对收到的数据使用“\r\n”进行分割，然后对第0个元素进行简单的判断处理，然后，在浏览器中分别访问：http://127.0.0.1:8088/Hello.php、http://127.0.0.1:8088/World.php、http://127.0.0.1:8088/Index.php，看看Shell中的输出：
+
+```bash
+> php swoole_server_demo.php
+用户想调用Hello.php
+用户想调用World.php
+用户想请求了一个不支持的方法
+```
+
+然后我们会发现浏览器分别打印了我们在分支语句中send回来的内容，就像平时调用了echo一样。
+
+> 严格来说，这样写，不一定能输出出来，因为HTTP协议对返回值的格式也有约定。
+
+如果我们对这个方法做的更完善一些，例如根据请求名，反射出Controller实例，并执行Controller的某个Method，整个过程几乎就跟我们常见的MVC框架一样了。
+
+> 事实上，在笔者看来，C中执行的业务逻辑，可以看作是"业务层”协议了
+
+无论是根据“\r\n”分段也好，根据“ ”拆分每段内部的字段也好，这些规则，都是协议本身的一部分。
+
+> 一般网络小说中，掌握了规则的强者总是开始努力打破规则，乃至定制自己的规则（所谓我的领域做主）
+
+HTTP的规则简单介绍的这里，我们回到一开始的问题，为什么我运行了一个TCP Server，却能实现HTTP的内容？
+
+> 相信盆友强忍着读到这里估计都会觉得笔者太罗嗦了，HTTP协议在传输层就是TCP协议实现的嘛
+
+想象一下你和你的基友正在打电话，你们说的是汉语、英语、德语、法语或者基语，是不是都不会影响两个电话之间的通信，电话工作是只要保证把声音传达到位，至于里边的内容，电话是不关心的。
+
+> 所谓不在其位，不谋其政
+
+而分层协议的工作原理也是一样，TCP作为传输层协议，它仅实现了传输层的某些特性，例如长连接，例如一个高可靠性的传输到位确认机制，但它对它传输的内容，具体怎么被识别或者处理，是不关心的。
+
+> TCP也有自己的交互流程和解析机制，但要比HTTP复杂，这里就不讨论了。
+
+而HTTP协议是应用层协议，顾名思义，它关注的是应用，也就是收到传输层TCP收到的消息以后，根据具体的应用进行处理。
+
+> 除了HTTP以外，常见的诸如HTTPS、FTP、WebSocket等，也都是应用层协议，而它们的传输层都是TCP实现的。
+
+应用层协议百花齐放，传输层的协议却要凋零的多，最常见的，无非是TCP和UDP。
+
+> 就像有声语言可能有千百种，一个电话一个短信就够了。
+
+所以，在架设自己的TCP Server的时候，要解决的第一个问题，就是，我的应用层协议是什么？
+
+# 逝者如斯夫的TCP流
+
+事实上，HTTP协议几乎可以解决绝大部分问题，虽然它本身无状态，但通过保存状态等方式（如Session、Cookies等）
