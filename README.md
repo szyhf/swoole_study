@@ -7,6 +7,7 @@
 2. [当SWOOLE遇上SERVER](https://github.com/szyhf/swoole_study/blob/master/当SWOOLE遇上SERVER.md) 【TCP/IP】
 3. [当SWOOLE遇上TCP](https://github.com/szyhf/swoole_study/blob/master/当SWOOLE遇上TCP.md)【TCP】
 4. [当SWOOLE遇上PROTOCOL](https://github.com/szyhf/swoole_study/blob/master/当SWOOLE遇上PROTOCOL.md)【网络协议】
+5. [Swoole的进程模型](https://github.com/szyhf/swoole_study/blob/master/Swoole的进程模型.md)【并发与多进程】
 
 # 番外
 
