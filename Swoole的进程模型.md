@@ -74,7 +74,7 @@ $server -> start();
 
 > 所以，其实我们虽然看起来只是启动了一个Server，其实最后产生的是三个进程。
 
-这三个进程中，所有进程的根进程，在例子中的2829进程，就是所谓的Master进程；而2831进程，则是Manager进程；最后的2836进程，是Worker进程。
+这三个进程中，所有进程的根进程，也就是例子中的2829进程，就是所谓的Master进程；而2831进程，则是Manager进程；最后的2836进程，是Worker进程。
 
 基于此，我们简单梳理一下，当执行的start方法之后，发生了什么：
 
@@ -88,12 +88,12 @@ $server -> start();
 
 事实上，一个多进程模式下的Swoole Server中，有且只有一个Master进程；有且只有一个Manager进程；却可以有n个Worker进程。
 
-> 那么这几个进程之间是怎么协同工作的呢？
+> 那么这几个进程之间是怎么协同工作的呢？我们先暂时考虑只有一个Worker的情况。
 
 那么，我们又可以拉出之前写的最简单Server，来看看这个过程中，三种进程之间是怎么协作的。
 
 1. Client主动Connect的时候，Client实际上是与Master进程中的某个Reactor线程发生了连接。
-1. 当TCP的三次握手成功了以后，由这个Reactor线程将连接成功的消息告诉Manager进程，再由Manager进程转交给某个Worker进程。
+1. 当TCP的三次握手成功了以后，由这个Reactor线程将连接成功的消息告诉Manager进程，再由Manager进程转交给Worker进程。
 1. 在这个Worker进程中触发了OnConnect的方法。
 1. 当Client向Server发送了一个数据包的时候，首先收到数据包的是Reactor线程，同时Reactor线程会完成组包，再将组好的包交给Manager进程，由Manager进程转交给Worker。
 1. 此时Worker进程触发OnReceive事件。
@@ -136,16 +136,7 @@ worker_num：表示启动多少个Worker进程，同样，Worker进程数量不�
 
 > 读书万卷不若自己亲手写一行，试验一下这个配置下，Server启动后，pstree的结构。
 
-# 回调与进程模型
-
-而多进程的模型会影响什么呢？首先，多进程模型的两个重要特性：
-
-1. 父进程fork出子进程的时候，子进程会拷贝一份父进程的所有数据。
-2. 各个进程之间的数据一般情况下是不共享的。
-
-这两个特性会引起什么问题呢？如果没有弄清楚当前的代码是在哪个进程执行的，很有可能就会引起数据的错误。
-
-> 所以，学习Swoole的进阶需求就是，要弄清楚各个回调方法分别是在哪个进程中发生的，且发生的顺序是什么。
+# 进程模型与数据共享
 
 在以前的讨论中，我们最常接触到的回调方法如下：
 
@@ -183,3 +174,205 @@ $server->on('WorkerError', function(\swoole_server $server, $worker_id, $worker_
 	echo "Worker error";
 });
 ```
+
+OK，现在我们更新一下我们的测试代码，以展示不同进程之间，数据共享的特点和关系：
+
+```php
+$server = new \swoole_server("127.0.0.1",8088,SWOOLE_PROCESS,SWOOLE_SOCK_TCP);
+
+$server->on('connect', function ($serv, $fd){ });
+
+$server->on('receive', function ($serv, $fd, $from_id, $data){ });
+
+$server->on('close', function ($serv, $fd){ });
+
+// 在交互进程中放入一个数据。
+$server->BaseProcess = "I'm base process."
+
+// 为了便于阅读，以下回调方法按照被起调的顺序组织
+// 1. 首先启动Master进程
+$server->on("start", function (\swoole_server $server){
+    echo "On master start.".PHP_EOL;
+    // 先打印在交互进程写入的数据
+    echo "server->BaseProcess = ".$server->BaseProcess.PHP_EOL;
+    // 修改交互进程中写入的数据
+    $server->BaseProcess = "I'm changed by master.";
+	// 在Master进程中写入一些数据，以传递给Manager进程。
+	$server->MasterToManager = "Hello manager, I'm master.";
+});
+
+// 2. Master进程拉起Manager进程
+$server->on('ManagerStart', function (\swoole_server $server){
+	echo "On manager start.".PHP_EOL;
+	// 打印，然后修改交互进程中写入的数据
+	echo "server->BaseProcess = ".$server->BaseProcess.PHP_EOL;
+	$server->BaseProcess = "I'm changed by manager.";
+	// 打印，然后修改在Master进程中写入的数据
+	echo "server->MasterToManager = ".$server->MasterToManager.PHP_EOL;
+	$server->MasterToManager = "This value has changed in manager.";
+	
+	// 写入传递给Worker进程的数据
+	$server->ManagerToWorker = "Hello worker, I'm manager.";
+});
+
+// 3. Manager进程拉起Worker进程
+$server->on('WorkerStart', function (\swoole_server $server, $worker_id){
+	echo "Worker start".PHP_EOL;
+	// 打印在交互进程写入，然后在Master进程，又在Manager进程被修改的数据
+	echo "server->BaseProcess = ".$server->BaseProcess.PHP_EOL;
+	
+	// 打印，并修改Master写入给Manager的数据
+	echo "server->MasterToManager = ".$server->MasterToManager.PHP_EOL;
+	$server->MasterToManager = "This value has changed in worker.";
+	
+	// 打印，并修改Manager传递给Worker进程的数据
+	echo "server->ManagerToWorker = ".$server->ManagerToWorker.PHP_EOL;
+	$server->ManagerToWorker = "This value is changed in worker.";
+});
+
+// 4. 正常结束Server的时候，首先结束Worker进程
+$server->on('WorkerStop', function(\swoole_server $server, $worker_id){
+	echo "Worker stop".PHP_EOL;
+	// 分别打印之前的数据
+	echo "server->ManagerToWorker = ".$server->ManagerToWorker.PHP_EOL;
+	echo "server->MasterToManager = ".$server->MasterToManager.PHP_EOL;
+	echo "server->BaseProcess = ".$server->BaseProcess.PHP_EOL;
+});
+
+// 5. 紧接着结束Manager进程
+$server->on('ManagerStop', function (\swoole_server $server){
+    echo "Manager stop.".PHP_EOL;
+	// 分别打印之前的数据
+	echo "server->ManagerToWorker = ".$server->ManagerToWorker.PHP_EOL;
+	echo "server->MasterToManager = ".$server->MasterToManager.PHP_EOL;
+	echo "server->BaseProcess = ".$server->BaseProcess.PHP_EOL;
+});
+
+// 6. 最后回收Master进程
+$server->on('shutdown', function (\swoole_server $server){
+	echo "Master shutdown.".PHP_EOL;
+	// 分别打印之前的数据
+	echo "server->ManagerToWorker = ".$server->ManagerToWorker.PHP_EOL;
+	echo "server->MasterToManager = ".$server->MasterToManager.PHP_EOL;
+	echo "server->BaseProcess = ".$server->BaseProcess.PHP_EOL;
+});
+
+$server -> start();
+```
+
+这段程序测试的时候，我们需要开两个会话，第一个会话用于执行并打印输出；第二个会话用于使用kill命令通知Server执行一些工作，然后我们看看输出的结果：
+
+```shell
+# 在会话一中
+> php swoole_server_demo.php
+On master start.
+server->BaseProcess = I'm base process.
+On manager start.
+server->BaseProcess = I'm base process.
+server->MasterToManager = 
+Worker start
+server->BaseProcess = I'm base process.
+server->MasterToManager = 
+server->ManagerToWorker = 
+```
+
+从Manager start和Worker start中的输出，我们发现BaseProcess、MasterToManager、ManagerToWorker并没有分别在Master、Manager中被修改，并在子进程中打印出被修改后的结果，这是为什么呢？别急，我们继续做个实验。
+
+打开会话二，先执行pstree -ap|grep php找到刚刚启动的Server的Master进程的PID，然后向该进程发送-10信号，然后再次实行pstree命令看看：
+
+```shell
+> pstree -ap|grep php
+  |   |       `-php,5512 swoole_server_demo.php
+  |   |           |-php,5513 swoole_server_demo.php
+  |   |           |   `-php,5515 swoole_server_demo.php
+>  kill -10 5512
+> pstree -ap|grep php
+  |   |       `-php,5512 swoole_server_demo.php
+  |   |           |-php,5513 swoole_server_demo.php
+  |   |           |   `-php,5522 swoole_server_demo.php
+```
+
+-10信号的作用是，要求Swoole重启Worker服务，我们会发现原来的Worker[5515]被干掉了，而产生了一个新的Worker[5522]，此时如果我们切换回会话一，会发现增加了以下的输出：
+
+```shell
+[2016-10-03 02:00:26 $5513.0]	NOTICE	Server is reloading now.
+Worker stop
+server->ManagerToWorker = This value is changed in worker.
+server->MasterToManager = This value has changed in worker.
+server->BaseProcess = I'm base process.
+Worker start
+server->BaseProcess = I'm changed by manager.
+server->MasterToManager = This value has changed in manager.
+server->ManagerToWorker = Hello worker, I'm manager.
+```
+
+首先是Swoole自己打印的日志信息，Server正在被reloading，然后Worker[5515]被终止，执行了WorkerStop的方法，此时WorkerStop输出的值我们可以看出，在WorkerStart中的赋值都是生效了的；然后，新的Worker[5522]被启动了，重新触发WorkerStart方法，这时我们发现，BaseProcess、MasterToManager和ManagerToWorker都分别被打印了出来？这是什么原因呢？
+
+原因在方法被执行的顺序上，我们前文中的进程起调顺序并没有问题，但有些地方我们要做一点小小的细化：
+
+1. Master进程被启动。
+2. Manager进程Master进程fork出来。
+3. Worker进程被Manager进程fork出来。
+4. MasterStart被回调。
+5. ManangerStart被回调。
+6. WorkerStart被回调。
+
+也就是说，三种进程的OnStart方法被回调的时候都有一定的延迟，底层事实上已经完工了fork的行为，才回调的，因此，默认启动的时候，我们在OnMasterStart、OnManagerStart中写入的数据并不能按预期被fork到Manager进程或者Worker进程。
+
+然后，我们执行了kill -10重新拉起Worker进程的时候，此时Worker进程仍然是由Mananger进程fork出来的，但此时ManangerStart已经被执行过了，所以我们会发现在OnWorkerStart的时候，输出变成了ManagerStart中修改过的内容。
+
+> OK，现在我们回到Shell会话二，向Master进程发送kill -15命令
+
+```shell
+> kill -15 5512
+```
+
+然后回到会话一，我们发现输出增加了如下的内容：
+
+```shell
+[2016-10-03 02:17:35 #5512.0]	NOTICE	Server is shutdown now.
+Worker stop
+server->ManagerToWorker = This value is changed in worker.
+server->MasterToManager = This value has changed in worker.
+server->BaseProcess = I'm changed by manager.
+Manager stop.
+server->ManagerToWorker = Hello worker, I'm manager.
+server->MasterToManager = This value has changed in manager.
+server->BaseProcess = I'm changed by manager.
+Master shutdown.
+server->ManagerToWorker = 
+server->MasterToManager = Hello manager, I'm master.
+server->BaseProcess = I'm changed by master.
+```
+
+-15命令是通知Swoole正常终止服务，首先停止Worker进程，触发OnWorkerStop回调，此时我们输出的内容懂事我们在WorkerStart中修改过的版本。
+
+然后停止Manager进程，这时候要留意，我们在Worker中做的所有操作并没有反应在Manager进程上，OnManagerStop的输出仍然是在OnManagerStart中赋值的内容。
+
+最后停止Master进程，也会有相同的事情发生。
+
+所以，通过这个实验，展示了多进程Server的两个重要特性：的两个重要特性：
+
+1. 父进程fork出子进程的时候，子进程会拷贝一份父进程的所有数据。
+2. 各个进程之间的数据一般情况下是不共享的。
+
+
+> 所以，学习Swoole的进一步需求就是，要弄清楚各个回调方法分别是在哪个进程中发生的，且发生的顺序是什么。
+
+
+这两个特性会引起什么问题呢？如果没有弄清楚当前的代码是在哪个进程执行的，很有可能就会引起数据的错误。
+
+> 以上例子中，为了便于输出，没有启用守护进程模式，所以交互进程与Master进程是同一个进程，有兴趣的童鞋欢迎在守护进程下实验。
+
+# 回顾
+
+这个系列我已经上传到了github上，欢迎围观：github.com/szyhf/swoole_study
+
+1. 当SWOOLE遇上PHP 【SWOOLE安装、PHP的CLI模式】
+1. 当SWOOLE遇上SERVER 【TCP/IP】
+1. 当SWOOLE遇上TCP【TCP】
+1. 当SWOOLE遇上PROTOCOL【通信协议】
+
+番外：
+
+1. 守护进程二三事与Supervisor
