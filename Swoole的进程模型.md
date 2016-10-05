@@ -1,6 +1,6 @@
 # 前言
 
-前文再续，就书接上一回，随着与Server、TCP、Protocol的邂逅，Swoole终于迎来了自己的故事，今天，我们来聊聊Swoole的进程模。
+前文再续，就书接上一回，随着与Server、TCP、Protocol的邂逅，Swoole终于迎来了自己的故事，今天，我们来聊聊Swoole的进程模型。
 
 > 前边几篇东西虽然标题是Swoole，其主要讲的是操作系统、计算机网络方面的知识，包括一点点笔者自己的私货，今天终于放假了，咱可以讨论一下公的了=。=
 
@@ -35,7 +35,7 @@ $server = new \swoole_server("127.0.0.1",8088,SWOOLE_PROCESS,SWOOLE_SOCK_TCP);
 
 > 其他mode的可选参数可以参考手册
 
-然后，我们简单实现一个没有任何内容的Server，并运行在守护进程模式下：
+然后，我们简单实现一个没有任何内容的Server：
 
 ```php
 <?php
@@ -47,16 +47,8 @@ $server->on('receive', function ($serv, $fd, $from_id, $data){ });
 
 $server->on('close', function ($serv, $fd){ });
 
-$server->set([
-	"daemonize"=>true
-]);
-
 $server -> start();
 ```
-
-相比以前，这里我们在启动Server之前，通过set方法对Server进行了配置，daemonize表示当前服务在启动后会进入守护进程。
-
-> 关于守护进程问题，可以参考拙作《守护进程二三事与Supervisor》
 
 在启动服务之后，我们继续在Shell中输入以下命令：
 
@@ -78,9 +70,11 @@ $server -> start();
 
 基于此，我们简单梳理一下，当执行的start方法之后，发生了什么：
 
-1. 当前进程退出（守护进程模式下），fork出Master进程，并触发OnMasterStart事件。
+1. 守护进程模式下，当前进程fork出Master进程，然后退出，Master进程触发OnMasterStart事件。
 2. Master进程启动成功之后，fork出Manager进程，并触发OnManagerStart事件。
 3. Manager进程启动成功时候，fork出Worker进程，并触发OnWorkerStart事件。
+
+> 非守护进程模式下，则当前进程直接作为Master进程工作。
 
 所以，一个最基础的Swoole Server，至少需要有3个进程，分别是Master进程、Manager进程和Worker进程。
 
@@ -345,7 +339,7 @@ server->MasterToManager = Hello manager, I'm master.
 server->BaseProcess = I'm changed by master.
 ```
 
--15命令是通知Swoole正常终止服务，首先停止Worker进程，触发OnWorkerStop回调，此时我们输出的内容懂事我们在WorkerStart中修改过的版本。
+kill -15命令是通知Swoole正常终止服务，首先停止Worker进程，触发OnWorkerStop回调，此时我们输出的内容懂事我们在WorkerStart中修改过的版本。
 
 然后停止Manager进程，这时候要留意，我们在Worker中做的所有操作并没有反应在Manager进程上，OnManagerStop的输出仍然是在OnManagerStart中赋值的内容。
 
@@ -357,7 +351,6 @@ server->BaseProcess = I'm changed by master.
 2. 各个进程之间的数据一般情况下是不共享内存的。
 
 > 所以，学习Swoole的进一步需求就是，要弄清楚各个回调方法分别是在哪个进程中发生的，且发生的顺序是什么。
-
 
 这两个特性会引起什么问题呢？如果没有弄清楚当前的代码是在哪个进程执行的，很有可能就会引起数据的错误，而多个进程之间进行协作的话，不能像以往的PHP开发一样，通过共享变量实现。
 
