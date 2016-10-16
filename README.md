@@ -17,3 +17,10 @@
 
 1. Swoole Server与多进程并发。（多进程工作模型、热重载问题）
 2. 应用层协议与心跳帧。（分包、黏包，pack\unpack函数、swoole_buffer）
+
+# 其他
+
+1. 最近的更新计划仍然是这个专题，一般两周更新一次，更新时间为周末，考虑工作情况，随时会拖更……
+1. 首发在微信号“大悦天”，部分会转发在“PHP饭米粒”……
+
+![Alt text](https://raw.githubusercontent.com/szyhf/swoole_study/master/wechat.png)
