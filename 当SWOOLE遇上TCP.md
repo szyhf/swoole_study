@@ -153,7 +153,8 @@ $server->on('receive', function ($serv, $fd, $from_id, $data)
         {
             foreach($serv->connections as $tempFD)
             {
-                 $serv->send($tempFD,"1 for apple\n");
+                 # 注: $tempFD 是全体client, $fd 是当前client.
+                 $serv->send($tempFD,"client {$fd} say : 1 for apple\n");
             }
             break;
         }
@@ -180,7 +181,7 @@ Trying 127.0.0.1...
 Connected to 127.0.0.1.
 Escape character is '^]'.
 1
-1 for apple
+client 1 say : 1 for apple
 ```
 
 > 第二个telnet客户端的输出
@@ -190,7 +191,7 @@ Escape character is '^]'.
 Trying 127.0.0.1...
 Connected to 127.0.0.1.
 Escape character is '^]'.
-1 for apple
+client 1 say : 1 for apple
 ```
 
 第二个telnet客户端虽然并没有向server端发送“1”作为消息，server端仍然向第二个客户端发送了消息“1 for apple\n”，这可以做什么？如果我们要做一个聊天室的话，就可以简单的实现发送公共聊天消息的功能。
