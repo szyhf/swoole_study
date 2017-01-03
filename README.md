@@ -8,6 +8,7 @@
 3. [当SWOOLE遇上TCP](https://github.com/szyhf/swoole_study/blob/master/当SWOOLE遇上TCP.md)【TCP】
 4. [当SWOOLE遇上PROTOCOL](https://github.com/szyhf/swoole_study/blob/master/当SWOOLE遇上PROTOCOL.md)【网络协议】
 5. [Swoole的进程模型](https://github.com/szyhf/swoole_study/blob/master/Swoole的进程模型.md)【并发与多进程】
+6. [Swoole的进程与热重载](https://github.com/szyhf/swoole_study/blob/master/Swoole的进程与热重载.md)【进程与热重载】
 
 # 番外
 
@@ -15,8 +16,7 @@
 
 # 计划
 
-1. Swoole Server与多进程并发。（多进程工作模型、热重载问题）
-2. 应用层协议与心跳帧。（分包、黏包，pack\unpack函数、swoole_buffer）
+1. 应用层协议与心跳帧。（分包、黏包，pack\unpack函数、swoole_buffer）
 
 # 其他
 
