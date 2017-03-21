@@ -24,3 +24,7 @@
 1. 首发在微信号“大悦天”，部分会转发在“PHP饭米粒”……
 
 ![Alt text](https://raw.githubusercontent.com/szyhf/swoole_study/master/wechat.png)
+
+# 最近为啥没更新
+
+键者最近事情太多了……忙不过来Orz
