@@ -1,6 +1,10 @@
 # swoole_study
 一份Swoole入门教程，根据作者的个人理解编写，常见的Swoole入门知识和讲解。
 
+# 最近为啥没更新
+
+键者忙疯了Orz……
+
 # 目录及相关知识点
 
 1. [当SWOOLE遇上PHP](https://github.com/szyhf/swoole_study/blob/master/当SWOOLE遇上PHP.md) 【SWOOLE安装、PHP的CLI模式】
@@ -24,7 +28,3 @@
 1. 首发在微信号“大悦天”，部分会转发在“PHP饭米粒”……
 
 ![Alt text](https://raw.githubusercontent.com/szyhf/swoole_study/master/wechat.png)
-
-# 最近为啥没更新
-
-键者最近事情太多了……忙不过来Orz
