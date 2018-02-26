@@ -17,6 +17,8 @@
 # 番外
 
 1. [守护进程二三事与Supervisor](https://github.com/szyhf/swoole_study/blob/master/番外：守护进程二三事与Supervisor.md) 
+2. [番外：数字签名与数字证书](https://github.com/szyhf/swoole_study/blob/master/番外：数字签名与数字证书.md)
+3. [番外：OpenSLL与数字证书](https://github.com/szyhf/swoole_study/blob/master/番外：OpenSLL与数字证书.md)
 
 # 计划
 
